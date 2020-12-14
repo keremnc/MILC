@@ -1,6 +1,10 @@
 #include <stdio.h>
 
-#include "milc.h"
+#include <math.h>
+#include <stdbool.h> 
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define BLOCK_SIZE 128
 
@@ -112,7 +116,7 @@ static bool data_block_search(uint32_t num_bits, uint32_t* data_start, uint32_t 
 
 bool contains_v1(unsigned char* compressed, uint32_t value) {
 	uint32_t key = value;
-	uint32_t num_blocks = (uint32_t) compressed[0];
+	uint32_t num_blocks = ((uint32_t*) compressed)[0];
 	metadata_block* blocks = (metadata_block*) (compressed + sizeof(uint32_t));
 
 	int l = 0, r = num_blocks - 1;

@@ -1,12 +1,15 @@
 #include <stdio.h>
 
-#include "milc.h"
+#include <math.h>
+#include <stdbool.h> 
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define BLOCK_SIZE 160
-#define TREE_CHILDREN 17
-#define COMPRESSION_PAD 60
 
 typedef struct metadata_block {
+	uint32_t start_value;
 	uint32_t offset;
 	uint8_t num_elements;
 	uint8_t num_bits;
@@ -75,48 +78,7 @@ static uint8_t optimal_mini_skips(uint32_t n, uint32_t* block, uint32_t skip_ele
 	return min_k;
 }
 
-static int sign(int x) {
-    return (x > 0) - (x < 0);
-}
-
-static int d_(int h, int j) {
-	return (int) floor(log(j) / log(TREE_CHILDREN));
-}
-
-static int o_(int h, int j) {
-	return j - (int) pow(TREE_CHILDREN, d_(h, j));
-}
-
-static int f_(int h, int j) {
-	return ((int) pow(TREE_CHILDREN, h - d_(h, j) - 1)) * ((int) floor((TREE_CHILDREN / (TREE_CHILDREN - 1.0)) * o_(h, j) + 1));
-}
-
-static int d(int h, int i) {
-	int sum = 0;
-	for (int x = 1; x < h; x++) {
-		sum += (sign(i % (int) pow(TREE_CHILDREN, h - x)));
-	}
-	return sum;
-}
-
-static int o(int h, int i) {
-	return floor(((TREE_CHILDREN - 1.0) / TREE_CHILDREN) * (i / pow(TREE_CHILDREN, h - d(h, i) - 1)));
-}
-
-static int f(int h, int i) {
-	return (int) pow(TREE_CHILDREN, d(h, i)) + o(h, i);
-}
-
-static int g(int i, int n) {
-	int H = (int) ceil(log(n + 1)/ log(TREE_CHILDREN));
-	if (i <= f_(H, n)) {
-		return f(H, i);
-	} else {
-		return f(H - 1, i - o_(H, n) - 1);
-	}
-}
-
-size_t compress_v4(unsigned char** memptr, uint32_t n, uint32_t* sorted_array) {
+size_t compress_v3(unsigned char** memptr, uint32_t n, uint32_t* sorted_array) {
 	uint32_t* split_points = (uint32_t*) malloc((n + 1) * sizeof(uint32_t));
 	bzero(split_points, (n + 1) * sizeof(uint32_t));
 
@@ -129,7 +91,6 @@ size_t compress_v4(unsigned char** memptr, uint32_t n, uint32_t* sorted_array) {
 		num_meta_blocks++;
 	}
 
-	uint32_t* meta_skip_ptrs = (uint32_t*) malloc(num_meta_blocks * sizeof(metadata_block));
 	metadata_block* metadata_blocks = (metadata_block*) malloc(num_meta_blocks * sizeof(metadata_block));
 	int meta_block_idx = 0;
 
@@ -149,14 +110,12 @@ size_t compress_v4(unsigned char** memptr, uint32_t n, uint32_t* sorted_array) {
 		uint32_t num_elems = end_idx - (start_idx + 1);
 
 		metadata_block block = {
+			.start_value 	= skip_elem,
 			.num_elements	= num_elems,
 			.num_bits		= num_bits,
 			.offset 		= cur_uint * 32 + cur_bit 
 		};
-		int linear_meta_idx = num_meta_blocks - ++meta_block_idx;
-		int tree_meta_idx = g(linear_meta_idx + 1, num_meta_blocks) - 1;
-		metadata_blocks[tree_meta_idx] = block;
-		meta_skip_ptrs[tree_meta_idx] = skip_elem;
+		metadata_blocks[meta_block_idx++] = block;
 
 		uint8_t num_mini_skips = 0;		
 		uint8_t num_sub_block_bits = 0;
@@ -236,30 +195,24 @@ size_t compress_v4(unsigned char** memptr, uint32_t n, uint32_t* sorted_array) {
 
 	int uint_write_head = cur_uint * 32 + cur_bit;
 
-	int total_size = COMPRESSION_PAD + meta_block_idx * (6 + sizeof(uint32_t)) + sizeof(uint32_t) + sizeof(uint32_t) * (int) ceil(uint_write_head / 32.0);
-	void* buf;
-	posix_memalign(&buf, 64, total_size);
+	int total_size = meta_block_idx * 10 + sizeof(uint32_t) + sizeof(uint32_t) * (int) ceil(uint_write_head / 32.0);
+	unsigned char* buf = (unsigned char*) malloc(total_size);
 
-	unsigned char* head = buf + COMPRESSION_PAD;
+	unsigned char* head = buf;
 	memcpy(head, &meta_block_idx, sizeof(uint32_t));
 	head += sizeof(uint32_t);
 
-	for (int i = 0; i < meta_block_idx; i++) {
-		memcpy(head, &meta_skip_ptrs[i], sizeof(uint32_t));
-		head += sizeof(uint32_t);
-	}
-
-	for (int i = 0; i < meta_block_idx; i++) {
+	for (int i = meta_block_idx - 1; i >= 0; i--) {
 		memcpy(head, &metadata_blocks[i], sizeof(metadata_block));
 		head += sizeof(metadata_block);
 	}
 
 	memcpy(head, data_blocks, sizeof(uint32_t) * (int) ceil(uint_write_head / 32.0));
+
 	*memptr = buf;
 	free(split_points);
 	free(metadata_blocks);
 	free(data_blocks);
-	free(meta_skip_ptrs);
 	return total_size;
 
 }
@@ -354,42 +307,25 @@ static bool data_block_search(uint32_t num_bits, uint32_t* data_start, uint32_t 
 	return false;
 }
 
-bool contains_v4(unsigned char* compressed, uint32_t value) {
+bool contains_v3(unsigned char* compressed, uint32_t value) {
 	uint32_t key = value;
-	uint32_t num_blocks = ((uint32_t*) (compressed + COMPRESSION_PAD))[0];
-	uint32_t* meta_skip_ptrs = (uint32_t*) (compressed + COMPRESSION_PAD + sizeof(uint32_t));
-	metadata_block* blocks = (metadata_block*) (compressed + COMPRESSION_PAD + ((num_blocks + 1) * sizeof(uint32_t)));
+	uint32_t num_blocks = ((uint32_t*) compressed)[0];
+	metadata_block* blocks = (metadata_block*) (compressed + sizeof(uint32_t));
 
-	int l = 1;
-	int cur = 0;
-
-	while (l > 0 && l <= num_blocks) {
-		int r = l + TREE_CHILDREN - 1;
-		if (r >= num_blocks) {
-			r = num_blocks + 1;
-		}
-		int part = 0;
-		int cur_part = 0;
-		for (int i = l; i < r; i++) {
-			uint32_t result = meta_skip_ptrs[i - 1];
-			if (result == key) return true;
-			cur_part++;
-			if (key > result) {
-				cur = i;
-				part = cur_part;
-			}
-		
-		}
-		l = (l * TREE_CHILDREN) + (part * (TREE_CHILDREN - 1));
+	int l = 0, r = num_blocks - 1;
+	while (l <= r) {
+		int mid = l + (r - l) / 2;
+		uint32_t result = blocks[mid].start_value;
+		if (result == key) return true;
+		if (result < key) l = mid + 1;
+		else r = mid - 1;
 	}
+	if (r < 0 || r >= num_blocks) return false;
 
-	cur--;
-	if (cur < 0 || cur >= num_blocks) return false;
+	metadata_block target = blocks[r];
+	key -= target.start_value;
 
-	metadata_block target = blocks[cur];
-	key -= meta_skip_ptrs[cur];
-
-	uint32_t* data_offset = (uint32_t*) (COMPRESSION_PAD + compressed + sizeof(uint32_t) + (num_blocks * (sizeof(uint32_t) + sizeof(metadata_block))));
+	uint32_t* data_offset = (uint32_t*) (compressed + sizeof(uint32_t) + (num_blocks * sizeof(metadata_block)));
 
 	return data_block_search(target.num_bits, data_offset, target.offset, target.num_elements, key);
 }

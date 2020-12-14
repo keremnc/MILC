@@ -1,12 +1,25 @@
 CC=gcc
-CFLAGS=-I.
-DEPS = milc.h
+DEPS=include/milc.h
+VPATH=src:test
+BUILDDIR=target
+BINDIR=$(BUILDDIR)/bin
+OBJDIR=$(BUILDDIR)/tmp
 
-%.o: %.c $(DEPS)
-	$(CC) -c -march=skylake-avx512 -o $@ $< $(CFLAGS)
+OBJS=$(patsubst %.o,$(OBJDIR)/%.o,milc_v1.o milc_v2.o milc_v3.o milc_v4.o milc_v5.o simdized.o)
 
-milc: milc.o milc_v1.o milc_v2.o milc_v3.o milc_v4.o milc_v5.o simdized.o
-	$(CC) -o milc milc.o milc_v1.o milc_v2.o milc_v3.o milc_v4.o milc_v5.o simdized.o -lm -O3
+all: $(BINDIR)/timing $(BINDIR)/validation
+
+$(OBJDIR)/%.o: %.c $(DEPS) | $(OBJDIR)
+	$(CC) -Iinclude -march=skylake-avx512 -c -o $@ $<
+
+$(BINDIR)/timing: $(OBJS) $(OBJDIR)/timing.o | $(BINDIR)
+	$(CC) -o $@ $(OBJS) $(OBJDIR)/timing.o -lm -O3
+
+$(BINDIR)/validation: $(OBJS) $(OBJDIR)/validation.o | $(BINDIR)
+	$(CC) -o $@ $(OBJS) $(OBJDIR)/validation.o -lm -O3	
+
+$(BINDIR) $(OBJDIR):
+	mkdir -p $@
 
 clean:
-	rm -f *.o milc 
+	rm -rf $(BUILDDIR)

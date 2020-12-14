@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <immintrin.h>
 
-#include "milc.h"
+#include <math.h>
+#include <stdbool.h> 
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define TREE_CHILDREN 17
 #define COMPRESSION_PAD 60
@@ -62,7 +66,7 @@ bool contains_simdized(uint32_t n, unsigned char* compressed, uint32_t value) {
 	uint32_t key = value;
 	uint32_t* elements = (uint32_t*) compressed;
 
-    __m512i max_mask = _mm512_set1_epi32(UINT32_MAX);
+	__m512i max_mask = _mm512_set1_epi32(UINT32_MAX);
 	__m512i search = _mm512_set1_epi32(key);
 
 	int l = 1;

@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <immintrin.h>
 
-#include "milc.h"
+#include <math.h>
+#include <stdbool.h> 
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define BLOCK_SIZE 160
 #define TREE_CHILDREN 17
@@ -77,7 +81,7 @@ static uint8_t optimal_mini_skips(uint32_t n, uint32_t* block, uint32_t skip_ele
 }
 
 static int sign(int x) {
-    return (x > 0) - (x < 0);
+	return (x > 0) - (x < 0);
 }
 
 static int d_(int h, int j) {
@@ -326,7 +330,7 @@ bool contains_v5(unsigned char* compressed, uint32_t value) {
 	uint32_t* meta_skip_ptrs = (uint32_t*) (compressed + COMPRESSION_PAD + sizeof(uint32_t));
 	metadata_block* blocks = (metadata_block*) (compressed + COMPRESSION_PAD + ((num_blocks + 1) * sizeof(uint32_t)));
 
-    __m512i max_mask = _mm512_set1_epi32(UINT32_MAX);
+	__m512i max_mask = _mm512_set1_epi32(UINT32_MAX);
 	__m512i search = _mm512_set1_epi32(key);
 
 	int l = 1;
@@ -334,8 +338,8 @@ bool contains_v5(unsigned char* compressed, uint32_t value) {
 
 	while (l <= num_blocks) {
 		__mmask16 mask = UINT16_MAX;
-		if (l + TREE_CHILDREN > num_blocks) {
-			mask << (num_blocks - TREE_CHILDREN);
+		if (l + TREE_CHILDREN >= num_blocks + 2) {
+			mask >>= (l + TREE_CHILDREN) - (num_blocks + 2);
 		}
 
 		__m512i keys = _mm512_mask_loadu_epi32(max_mask, mask, meta_skip_ptrs + l - 1);
