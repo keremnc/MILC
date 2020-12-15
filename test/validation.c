@@ -45,7 +45,7 @@ int validate(uint32_t n, uint32_t* sorted)
 	double simd_time = 0;
 
 	clock_t start, end;
-	for (int i = 0; i < 500000000; i += 1001) {
+	for (int i = 0; i < 500000000; i += 1) {
 		if (i % 10000000 == 0) printf("i=%d\n", i);
 		start = clock();
 		bool v1_result = contains_v1(v1, i);
