@@ -365,29 +365,30 @@ bool contains_v4(unsigned char* compressed, uint32_t value) {
 	metadata_block* blocks = (metadata_block*) (compressed + COMPRESSION_PAD + ((num_blocks + 1) * sizeof(uint32_t)));
 
 	int l = 1;
-	int cur = 0;
+	int cur = -1;
 
 	while (l > 0 && l <= num_blocks) {
 		int r = l + TREE_CHILDREN - 1;
 		if (r >= num_blocks) {
 			r = num_blocks + 1;
 		}
-		int part = 0;
-		int cur_part = 0;
-		for (int i = l; i < r; i++) {
-			uint32_t result = meta_skip_ptrs[i - 1];
+
+		int skip_l = l, skip_r = r - 1;
+		while (skip_l <= skip_r) {
+			int mid = skip_l + (skip_r - skip_l) / 2;
+			uint32_t result = meta_skip_ptrs[mid - 1];
 			if (result == key) return true;
-			cur_part++;
-			if (key > result) {
-				cur = i;
-				part = cur_part;
-			}
-		
+			if (result < key) skip_l = mid + 1;
+			else skip_r = mid - 1;
 		}
+		int part = skip_r - l + 1;
+		if (part != 0) {
+			cur = skip_r - 1;
+		}
+
 		l = (l * TREE_CHILDREN) + (part * (TREE_CHILDREN - 1));
 	}
 
-	cur--;
 	if (cur < 0 || cur >= num_blocks) return false;
 
 	metadata_block target = blocks[cur];

@@ -25,7 +25,7 @@ bool contains_uncompressed(uint32_t n, uint32_t* uncompressed, uint32_t value) {
 	return false;
 }
 
-int validate(uint32_t n, uint32_t* sorted)
+int validate(uint32_t n, uint32_t* sorted, uint32_t max_num)
 {
 	printf("Processing %d elements\n", n);
 	unsigned char *v1, *v2, *v3, *v4, *v5, *simdized;
@@ -45,7 +45,7 @@ int validate(uint32_t n, uint32_t* sorted)
 	double simd_time = 0;
 
 	clock_t start, end;
-	for (int i = 0; i < 500000000; i += 1) {
+	for (int i = 0; i < max_num; i += 1) {
 		if (i % 10000000 == 0) printf("i=%d\n", i);
 		start = clock();
 		bool v1_result = contains_v1(v1, i);
@@ -126,12 +126,13 @@ uint32_t* generate_list(uint32_t n) {
 }
 
 int main() {
-	srand(time(NULL));	
+	srand(time(NULL));
 	for (uint32_t p = 12; p < 26; p++) {
 		uint32_t n = (uint32_t) pow(2, p);
 		uint32_t* list = generate_list(n);
+		uint32_t max_num = list[n - 1];
 		printf("===== VALIDATING FOR p=%d =====\n", p);
-		validate(n, list);
+		validate(n, list, max_num);
 		free(list);
 	}
 }
